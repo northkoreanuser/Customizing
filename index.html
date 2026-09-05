@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customizing</title>
+<style>
+  body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 0 16px; line-height: 1.6; }
+  h1 { font-size: 1.4em; }
+  #status { color: #888; }
+  ul { list-style: none; padding-left: 0; }
+  ul ul { padding-left: 20px; }
+  li { margin: 4px 0; }
+  .folder { font-weight: bold; }
+  a { text-decoration: none; color: #0366d6; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<h1>Customizing</h1>
+<div id="status">불러오는 중...</div>
+<div id="tree"></div>
+
+<script>
+const OWNER = "northkoreanuser";
+const REPO = "Customizing";
+const BRANCH = "main";
+
+async function main() {
+  const statusEl = document.getElementById("status");
+  const treeEl = document.getElementById("tree");
+
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${OWNER}/${REPO}/git/trees/${BRANCH}?recursive=1`
+    );
+    if (!res.ok) throw new Error(`GitHub API 오류: ${res.status}`);
+    const data = await res.json();
+
+    if (data.truncated) {
+      statusEl.textContent = "경고: 파일이 너무 많아 목록이 일부 누락되었을 수 있습니다.";
+    } else {
+      statusEl.remove();
+    }
+
+    // 루트 index.html(이 파일 자신) 제외, index.html만 추출
+    const pages = data.tree
+      .filter(item => item.type === "blob" && item.path.toLowerCase().endsWith("index.html"))
+      .filter(item => item.path !== "index.html")
+      .map(item => item.path);
+
+    if (pages.length === 0) {
+      treeEl.textContent = "하위 index.html을 찾지 못했습니다.";
+      return;
+    }
+
+    // 폴더 경로별로 그룹핑 (마지막 세그먼트인 index.html 제외한 폴더 경로 기준)
+    const folders = pages.map(p => p.replace(/\/index\.html$/i, ""));
+    folders.sort((a, b) => a.localeCompare(b, "ko"));
+
+    const ul = document.createElement("ul");
+    folders.forEach(folderPath => {
+      const encodedPath = folderPath.split("/").map(encodeURIComponent).join("/");
+      const url = `https://${OWNER}.github.io/${REPO}/${encodedPath}/`;
+
+      const li = document.createElement("li");
+      const a = document.createElement("a");
+      a.href = url;
+      a.textContent = folderPath;
+      li.appendChild(a);
+      ul.appendChild(li);
+    });
+
+    treeEl.appendChild(ul);
+  } catch (err) {
+    statusEl.textContent = "목록을 불러오지 못했습니다: " + err.message;
+  }
+}
+
+main();
+</script>
+
+</body>
+</html>
