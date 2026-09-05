@@ -7,11 +7,14 @@
 <style>
   body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 0 16px; line-height: 1.6; }
   h1 { font-size: 1.4em; }
-  #repo-link { font-size: 0.85em; color: #888; }
+  #repo-link { font-size: 0.85em; color: #888; margin-bottom: 1em; }
   #repo-link a { color: inherit; }
   #status { color: #888; }
-  ul { list-style: none; padding-left: 0; }
-  li { margin: 4px 0; }
+  #tree ul { list-style: none; padding-left: 1.2em; margin: 0; }
+  #tree > ul { padding-left: 0; }
+  #tree li { margin: 2px 0; }
+  summary { cursor: pointer; }
+  summary::marker { color: #888; }
   a { text-decoration: none; color: #0366d6; }
   a:hover { text-decoration: underline; }
 </style>
@@ -30,6 +33,53 @@ function getOwnerRepo() {
   const owner = location.hostname.split(".")[0] || "";
   const repo = location.pathname.split("/").filter(Boolean)[0] || "";
   return { owner, repo };
+}
+
+// 경로 배열("A/B/C" 형태)을 중첩 트리 객체로 변환
+function buildTree(paths) {
+  const root = {};
+  paths.forEach(path => {
+    const parts = path.split("/").filter(Boolean);
+    let node = root;
+    parts.forEach(part => {
+      if (!node[part]) node[part] = {};
+      node = node[part];
+    });
+  });
+  return root;
+}
+
+// 트리 객체를 <details>/<summary> 기반 접이식 목록으로 렌더링
+// 자식이 있으면 펼치기용 노드, 없으면(끝까지 간 경우) 링크
+function renderTree(node, basePath) {
+  const ul = document.createElement("ul");
+  const names = Object.keys(node).sort((a, b) => a.localeCompare(b, "ko"));
+
+  names.forEach(name => {
+    const children = node[name];
+    const fullPath = basePath ? basePath + "/" + name : name;
+    const hasChildren = Object.keys(children).length > 0;
+    const li = document.createElement("li");
+
+    if (hasChildren) {
+      const details = document.createElement("details");
+      const summary = document.createElement("summary");
+      summary.textContent = name;
+      details.appendChild(summary);
+      details.appendChild(renderTree(children, fullPath));
+      li.appendChild(details);
+    } else {
+      const encodedHref = fullPath.split("/").map(encodeURIComponent).join("/") + "/";
+      const a = document.createElement("a");
+      a.href = encodedHref;
+      a.textContent = name;
+      li.appendChild(a);
+    }
+
+    ul.appendChild(li);
+  });
+
+  return ul;
 }
 
 async function main() {
@@ -59,17 +109,8 @@ async function main() {
       return;
     }
 
-    const ul = document.createElement("ul");
-    folders.forEach(folderPath => {
-      const encodedPath = folderPath.split("/").map(encodeURIComponent).join("/");
-      const li = document.createElement("li");
-      const a = document.createElement("a");
-      a.href = encodedPath + "/";
-      a.textContent = folderPath;
-      li.appendChild(a);
-      ul.appendChild(li);
-    });
-    treeEl.appendChild(ul);
+    const tree = buildTree(folders);
+    treeEl.appendChild(renderTree(tree, ""));
   } catch (err) {
     statusEl.textContent = "목록을 불러오지 못했습니다: " + err.message;
   }
